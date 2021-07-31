@@ -2,7 +2,6 @@ package index
 
 import (
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"reflect"
 	"testing"
 )
@@ -21,7 +20,7 @@ func TestNewIndex(t *testing.T) {
 		{
 			name: "create inverted index",
 			args: args{word: "AAA b&bb AAA A^Aa."},
-			want: &Index{PostingMap: map[string][]int{
+			want: &Index{postingMap: map[string][]int{
 				"aaa": {0, 2, 3},
 				"bbb": {1},
 			}},
@@ -29,7 +28,7 @@ func TestNewIndex(t *testing.T) {
 		{
 			name: "don't create postings for empty string(after normalized)",
 			args: args{word: "     $   -  "},
-			want: &Index{PostingMap: map[string][]int{}},
+			want: &Index{postingMap: map[string][]int{}},
 		},
 	}
 	for _, tt := range tests {
@@ -38,8 +37,7 @@ func TestNewIndex(t *testing.T) {
 			t.Parallel()
 
 			got := NewIndex(tt.args.word)
-			cmpopt := cmpopts.IgnoreFields(*got, "postingCache")
-			if diff := cmp.Diff(got, tt.want, cmpopt); diff != "" {
+			if diff := cmp.Diff(got.postingMap, tt.want.postingMap); diff != "" {
 				t.Errorf("NewIndex() = (-want +got):\n%s", diff)
 			}
 		})

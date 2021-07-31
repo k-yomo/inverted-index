@@ -11,7 +11,7 @@ const (
 )
 
 type Index struct {
-	PostingMap   map[string][]int
+	postingMap   map[string][]int
 	postingCache map[string]int
 }
 
@@ -25,7 +25,7 @@ func NewIndex(document string) *Index {
 		}
 	}
 	return &Index{
-		PostingMap:   index,
+		postingMap:   index,
 		postingCache: make(map[string]int),
 	}
 }
@@ -58,7 +58,7 @@ func (idx *Index) NextPhrase(phrase string, position int) *Range {
 }
 
 func (idx *Index) First(term string) int {
-	postings := idx.PostingMap[term]
+	postings := idx.postingMap[term]
 	if len(postings) == 0 {
 		return NegativeInf
 	}
@@ -66,7 +66,7 @@ func (idx *Index) First(term string) int {
 }
 
 func (idx *Index) Last(term string) int {
-	postings := idx.PostingMap[term]
+	postings := idx.postingMap[term]
 	if len(postings) == 0 {
 		return Inf
 	}
@@ -74,7 +74,7 @@ func (idx *Index) Last(term string) int {
 }
 
 func (idx *Index) Prev(term string, current int) int {
-	postings, exist := idx.PostingMap[term]
+	postings, exist := idx.postingMap[term]
 	if !exist || current <= postings[0] {
 		return NegativeInf
 	}
@@ -97,7 +97,7 @@ func (idx *Index) Prev(term string, current int) int {
 
 func (idx *Index) Next(term string, current int) int {
 	last := idx.Last(term)
-	postings, exist := idx.PostingMap[term]
+	postings, exist := idx.postingMap[term]
 	if !exist || current >= last {
 		return Inf
 	}
