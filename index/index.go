@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	Inf         = int(^uint(0) >> 1) // use max int as Inf
-	NegativeInf = -Inf - 1           // use min int as -Inf
+	Inf         = int(^uint(0) >> 1) // use max int as ∞
+	NegativeInf = -Inf - 1           // use min int as -∞
 )
 
 type Index struct {
-	index map[string][]int
+	PostingMap map[string][]int
 }
 
 func NewIndex(document string) *Index {
@@ -19,10 +19,12 @@ func NewIndex(document string) *Index {
 	index := make(map[string][]int)
 	for i, term := range terms {
 		term = regexp.MustCompile("[\\W]+").ReplaceAllString(strings.ToLower(term), "")
-		index[term] = append(index[term], i)
+		if term != "" {
+			index[term] = append(index[term], i)
+		}
 	}
 	return &Index{
-		index: index,
+		PostingMap: index,
 	}
 }
 
@@ -51,7 +53,7 @@ func (idx *Index) NextPhrase(phrase string, position int) *Range {
 }
 
 func (idx *Index) First(term string) int {
-	postings := idx.index[term]
+	postings := idx.PostingMap[term]
 	if len(postings) == 0 {
 		return NegativeInf
 	}
@@ -59,15 +61,15 @@ func (idx *Index) First(term string) int {
 }
 
 func (idx *Index) Last(term string) int {
-	postings := idx.index[term]
+	postings := idx.PostingMap[term]
 	if len(postings) == 0 {
 		return Inf
 	}
-	return postings[0]
+	return postings[len(postings)-1]
 }
 
 func (idx *Index) Prev(term string, current int) int {
-	postings := idx.index[term]
+	postings := idx.PostingMap[term]
 	// TODO: refactor with binary search
 	for i := len(postings) - 1; i >= 0; i-- {
 		if postings[i] < current {
@@ -78,7 +80,7 @@ func (idx *Index) Prev(term string, current int) int {
 }
 
 func (idx *Index) Next(term string, current int) int {
-	postings := idx.index[term]
+	postings := idx.PostingMap[term]
 	// TODO: refactor with binary search
 	for i, pos := range postings {
 		if pos > current {
