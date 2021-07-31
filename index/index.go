@@ -25,7 +25,7 @@ func NewIndex(document string) *Index {
 		}
 	}
 	return &Index{
-		PostingMap: index,
+		PostingMap:   index,
 		postingCache: make(map[string]int),
 	}
 }
@@ -38,24 +38,23 @@ type Range struct {
 func (idx *Index) NextPhrase(phrase string, position int) *Range {
 	terms := strings.Split(phrase, " ")
 	termNum := len(terms)
-
-	v := position
-	for i := 0; i < len(terms); i++ {
-		v = idx.Next(terms[i], v)
-	}
-	if v == Inf {
+	if termNum == 0 {
 		return &Range{From: Inf, To: Inf}
 	}
 
-	u := v
-	for i := termNum - 2; i >= 0; i-- {
-		u = idx.Prev(terms[i], u)
+	from := idx.Next(terms[0], position)
+	to := from
+	for i := 1; i < len(terms); i++ {
+		to = idx.Next(terms[i], to)
+	}
+	if to == Inf {
+		return &Range{From: Inf, To: Inf}
 	}
 
-	if v-u == termNum-1 {
-		return &Range{From: u, To: v}
+	if to-from == termNum-1 {
+		return &Range{From: from, To: to}
 	}
-	return idx.NextPhrase(phrase, u)
+	return idx.NextPhrase(phrase, from)
 }
 
 func (idx *Index) First(term string) int {
