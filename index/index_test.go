@@ -2,6 +2,7 @@ package index
 
 import (
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"reflect"
 	"testing"
 )
@@ -37,7 +38,8 @@ func TestNewIndex(t *testing.T) {
 			t.Parallel()
 
 			got := NewIndex(tt.args.word)
-			if diff := cmp.Diff(got, tt.want); diff != "" {
+			cmpopt := cmpopts.IgnoreFields(*got, "postingCache")
+			if diff := cmp.Diff(got, tt.want, cmpopt); diff != "" {
 				t.Errorf("NewIndex() = (-want +got):\n%s", diff)
 			}
 		})

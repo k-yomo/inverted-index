@@ -11,7 +11,8 @@ const (
 )
 
 type Index struct {
-	PostingMap map[string][]int
+	PostingMap   map[string][]int
+	postingCache map[string]int
 }
 
 func NewIndex(document string) *Index {
@@ -25,6 +26,7 @@ func NewIndex(document string) *Index {
 	}
 	return &Index{
 		PostingMap: index,
+		postingCache: make(map[string]int),
 	}
 }
 
@@ -46,7 +48,7 @@ func (idx *Index) NextPhrase(phrase string, position int) *Range {
 	}
 
 	u := v
-	for i := termNum-2; i >= 0; i-- {
+	for i := termNum - 2; i >= 0; i-- {
 		u = idx.Prev(terms[i], u)
 	}
 
@@ -78,7 +80,7 @@ func (idx *Index) Prev(term string, current int) int {
 		return NegativeInf
 	}
 	if current > postings[len(postings)-1] {
-		return idx.Last(term)
+		return postings[len(postings)-1]
 	}
 
 	ok, ng := 0, len(postings)-1
@@ -95,22 +97,49 @@ func (idx *Index) Prev(term string, current int) int {
 }
 
 func (idx *Index) Next(term string, current int) int {
+	last := idx.Last(term)
 	postings, exist := idx.PostingMap[term]
-	if !exist || current >= postings[len(postings)-1] {
+	if !exist || current >= last {
 		return Inf
 	}
 	if current < postings[0] {
-		return idx.First(term)
+		idx.setPostingCache(term, 0)
+		return postings[0]
 	}
 
-	ok, ng := len(postings)-1, 0
-	for ok-ng > 1 {
-		mid := (ok + ng) / 2
+	low := 0
+	if cache := idx.postingCache[term]; cache > 0 && postings[cache-1] <= current {
+		low = cache - 1
+	}
+
+	jump := 1
+	high := low + jump
+	for high < len(postings)-1 && postings[high] <= current {
+		low = high
+		jump = 2 * jump
+		high = low + jump
+	}
+	if high > last {
+		high = last
+	}
+
+	nextIndex := binarySearch(postings, low, high, current)
+	idx.setPostingCache(term, nextIndex)
+	return postings[nextIndex]
+}
+
+func (idx *Index) setPostingCache(term string, i int) {
+	idx.postingCache[term] = i
+}
+
+func binarySearch(postings []int, low, high, current int) int {
+	for high-low > 1 {
+		mid := (low + high) / 2
 		if postings[mid] > current {
-			ok = mid
+			high = mid
 		} else {
-			ng = mid
+			low = mid
 		}
 	}
-	return postings[ok]
+	return high
 }
