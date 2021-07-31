@@ -7,6 +7,8 @@ import (
 )
 
 func TestNewIndex(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		word string
 	}
@@ -30,7 +32,10 @@ func TestNewIndex(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := NewIndex(tt.args.word)
 			if diff := cmp.Diff(got, tt.want); diff != "" {
 				t.Errorf("NewIndex() = (-want +got):\n%s", diff)
@@ -76,6 +81,8 @@ func TestIndex_First(t *testing.T) {
 }
 
 func TestIndex_Last(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		term string
 	}
@@ -125,9 +132,9 @@ func TestIndex_Prev(t *testing.T) {
 	}{
 		{
 			name:  "return prev position",
-			index: NewIndex("word word word"),
-			args:  args{term: "word", current: 2},
-			want:  1,
+			index: NewIndex("word aaa word word"),
+			args:  args{term: "word", current: 3},
+			want:  2,
 		},
 		{
 			name:  "return last when current is ∞",
@@ -158,6 +165,7 @@ func TestIndex_Prev(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			if got := tt.index.Prev(tt.args.term, tt.args.current); got != tt.want {
 				t.Errorf("Prev() = %v, want %v", got, tt.want)
 			}
@@ -180,7 +188,7 @@ func TestIndex_Next(t *testing.T) {
 	}{
 		{
 			name:  "return next position",
-			index: NewIndex("word word word"),
+			index: NewIndex("word aaa word word"),
 			args:  args{term: "word", current: 1},
 			want:  2,
 		},
@@ -213,6 +221,7 @@ func TestIndex_Next(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			if got := tt.index.Next(tt.args.term, tt.args.current); got != tt.want {
 				t.Errorf("Next() = %v, want %v", got, tt.want)
 			}
@@ -221,6 +230,8 @@ func TestIndex_Next(t *testing.T) {
 }
 
 func TestIndex_NextPhrase(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		phrase   string
 		position int
@@ -269,7 +280,10 @@ func TestIndex_NextPhrase(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := tt.index.NextPhrase(tt.args.phrase, tt.args.position); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NextPhrase() = %v, want %v", got, tt.want)
 			}

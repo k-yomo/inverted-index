@@ -35,6 +35,8 @@ type Range struct {
 
 func (idx *Index) NextPhrase(phrase string, position int) *Range {
 	terms := strings.Split(phrase, " ")
+	termNum := len(terms)
+
 	v := position
 	for i := 0; i < len(terms); i++ {
 		v = idx.Next(terms[i], v)
@@ -42,11 +44,13 @@ func (idx *Index) NextPhrase(phrase string, position int) *Range {
 	if v == Inf {
 		return &Range{From: Inf, To: Inf}
 	}
+
 	u := v
-	for i := len(terms) - 2; i >= 0; i-- {
+	for i := termNum-2; i >= 0; i-- {
 		u = idx.Prev(terms[i], u)
 	}
-	if v-u == len(terms)-1 {
+
+	if v-u == termNum-1 {
 		return &Range{From: u, To: v}
 	}
 	return idx.NextPhrase(phrase, u)
@@ -69,23 +73,44 @@ func (idx *Index) Last(term string) int {
 }
 
 func (idx *Index) Prev(term string, current int) int {
-	postings := idx.PostingMap[term]
-	// TODO: refactor with binary search
-	for i := len(postings) - 1; i >= 0; i-- {
-		if postings[i] < current {
-			return postings[i]
+	postings, exist := idx.PostingMap[term]
+	if !exist || current <= postings[0] {
+		return NegativeInf
+	}
+	if current > postings[len(postings)-1] {
+		return idx.Last(term)
+	}
+
+	ok, ng := 0, len(postings)-1
+	for ng-ok > 1 {
+		mid := (ok + ng) / 2
+		if postings[mid] < current {
+			ok = mid
+		} else {
+			ng = mid
 		}
 	}
-	return NegativeInf
+
+	return postings[ok]
 }
 
 func (idx *Index) Next(term string, current int) int {
-	postings := idx.PostingMap[term]
-	// TODO: refactor with binary search
-	for i, pos := range postings {
-		if pos > current {
-			return postings[i]
+	postings, exist := idx.PostingMap[term]
+	if !exist || current >= postings[len(postings)-1] {
+		return Inf
+	}
+	if current < postings[0] {
+		return idx.First(term)
+	}
+
+	ok, ng := len(postings)-1, 0
+	for ok-ng > 1 {
+		mid := (ok + ng) / 2
+		if postings[mid] > current {
+			ok = mid
+		} else {
+			ng = mid
 		}
 	}
-	return Inf
+	return postings[ok]
 }
