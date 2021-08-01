@@ -26,6 +26,15 @@ func TestNewIndex(t *testing.T) {
 			}},
 		},
 		{
+			name: "stop word is removed",
+			args: args{word: "There is a book."},
+			want: &Index{postingMap: map[string][]int{
+				"there": {0},
+				"is": {1},
+				"book": {2},
+			}},
+		},
+		{
 			name: "don't create postings for empty string(after normalized)",
 			args: args{word: "     $   -  "},
 			want: &Index{postingMap: map[string][]int{}},

@@ -16,9 +16,8 @@ type Index struct {
 }
 
 func NewIndex(document string) *Index {
-	terms := strings.Split(document, " ")
 	index := make(map[string][]int)
-	for i, term := range terms {
+	for i, term := range tokenize(document) {
 		term = regexp.MustCompile("[\\W]+").ReplaceAllString(strings.ToLower(term), "")
 		if term != "" {
 			index[term] = append(index[term], i)
