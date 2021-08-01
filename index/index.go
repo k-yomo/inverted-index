@@ -35,7 +35,7 @@ type Range struct {
 }
 
 func (idx *Index) NextPhrase(phrase string, position int) *Range {
-	terms := strings.Split(phrase, " ")
+	terms := tokenize(phrase)
 	termNum := len(terms)
 	if termNum == 0 {
 		return &Range{From: Inf, To: Inf}
