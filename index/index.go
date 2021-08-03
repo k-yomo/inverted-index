@@ -17,7 +17,7 @@ type Index struct {
 
 func NewIndex(document string) *Index {
 	index := make(map[string][]int)
-	for i, term := range tokenize(document) {
+	for i, term := range analyze(document) {
 		term = regexp.MustCompile("[\\W]+").ReplaceAllString(strings.ToLower(term), "")
 		if term != "" {
 			index[term] = append(index[term], i)
@@ -35,7 +35,7 @@ type Range struct {
 }
 
 func (idx *Index) NextPhrase(phrase string, position int) *Range {
-	terms := tokenize(phrase)
+	terms := analyze(phrase)
 	termNum := len(terms)
 	if termNum == 0 {
 		return &Range{From: Inf, To: Inf}
