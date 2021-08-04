@@ -1,10 +1,5 @@
 package index
 
-import (
-	"regexp"
-	"strings"
-)
-
 const (
 	Inf         = int(^uint(0) >> 1) // use max int as ∞
 	NegativeInf = -Inf - 1           // use min int as -∞
@@ -18,10 +13,7 @@ type Index struct {
 func NewIndex(document string) *Index {
 	index := make(map[string][]int)
 	for i, term := range analyze(document) {
-		term = regexp.MustCompile("[\\W]+").ReplaceAllString(strings.ToLower(term), "")
-		if term != "" {
-			index[term] = append(index[term], i)
-		}
+		index[term] = append(index[term], i)
 	}
 	return &Index{
 		postingMap:   index,
