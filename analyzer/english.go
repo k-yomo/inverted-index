@@ -1,9 +1,24 @@
-package index
+package analyzer
 
 import (
 	"github.com/kljensen/snowball/english"
 	"strings"
 )
+
+type EnglishAnalyzer struct {}
+
+func (a *EnglishAnalyzer) Analyze(text string) []string {
+		tokens := tokenize(text)
+		tokens = lowercaseFilter(tokens)
+		tokens = stopWordFilter(tokens)
+		tokens = stemmerFilter(tokens)
+
+		return tokens
+}
+
+func tokenize(text string) []string {
+	return strings.Split(text, " ")
+}
 
 func lowercaseFilter(tokens []string) []string {
 	r := make([]string, 0, len(tokens))
