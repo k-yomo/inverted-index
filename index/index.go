@@ -17,9 +17,10 @@ type Document struct {
 }
 
 type Index struct {
-	analyzer            analyzer.Analyzer
-	tokenPostingInfoMap map[string]*postingInfo
-	totalDocNum         int
+	analyzer      analyzer.Analyzer
+	forwardIndex  map[int][]string
+	invertedIndex map[string]*postingInfo
+	totalDocNum   int
 }
 
 type postingInfo struct {
@@ -27,30 +28,61 @@ type postingInfo struct {
 }
 
 func NewIndex(analyzer analyzer.Analyzer, documents ...Document) *Index {
-	tokenPostingInfoMap := make(map[string]*postingInfo)
+	forwardIndex := make(map[int][]string)
+	invertedIndex := make(map[string]*postingInfo)
 	for _, doc := range documents {
 		postingMap := make(map[string][]int)
 		tokens := analyzer.Analyze(doc.Text)
-		for i, term := range tokens {
-			postingMap[term] = append(postingMap[term], i)
+		for i, token := range tokens {
+			postingMap[token] = append(postingMap[token], i)
 		}
-		for term, postings := range postingMap {
-			if tokenPostingInfoMap[term] == nil {
-				tokenPostingInfoMap[term] = &postingInfo{}
+
+		var uniqueTokens []string
+		for token, postings := range postingMap {
+			uniqueTokens = append(uniqueTokens, token)
+			if invertedIndex[token] == nil {
+				invertedIndex[token] = &postingInfo{}
 			}
-			tokenPostingInfoMap[term].postings = append(tokenPostingInfoMap[term].postings, &posting{
+			invertedIndex[token].postings = append(invertedIndex[token].postings, &posting{
 				docID:         doc.ID,
 				termFrequency: float64(len(postings)) / float64(len(tokens)),
 				postings:      postings,
 			})
 		}
+
+		forwardIndex[doc.ID] = uniqueTokens
 	}
 
 	return &Index{
-		analyzer:            analyzer,
-		tokenPostingInfoMap: tokenPostingInfoMap,
-		totalDocNum:         len(documents),
+		analyzer:      analyzer,
+		forwardIndex:  forwardIndex,
+		invertedIndex: invertedIndex,
+		totalDocNum:   len(documents),
 	}
+}
+
+func (idx *Index) DeleteDoc(docID int) {
+	tokens, ok := idx.forwardIndex[docID]
+	if !ok {
+		return
+	}
+
+	for _, token := range tokens {
+		postingInfo, ok := idx.invertedIndex[token]
+		if !ok {
+			continue
+		}
+		docPos := postingInfo.postings.DocNextIndex(docID-1)
+		if docPos >= len(postingInfo.postings) || postingInfo.postings[docPos].docID != docID {
+			continue
+		}
+		postingInfo.postings = append(postingInfo.postings[:docPos], postingInfo.postings[docPos+1:]...)
+	}
+
+	idx.totalDocNum--
+	delete(idx.forwardIndex, docID)
+
+	return
 }
 
 type PhrasePosition struct {
@@ -85,7 +117,7 @@ func (idx *Index) Search(phrase string) []*Hit {
 	docScoreMap := make(map[int]float64)
 	for _, token := range tokens {
 		idf := idx.idf(token)
-		if postingInfo, ok := idx.tokenPostingInfoMap[token]; ok {
+		if postingInfo, ok := idx.invertedIndex[token]; ok {
 			for _, posting := range postingInfo.postings {
 				docScoreMap[posting.docID] += posting.termFrequency * idf
 			}
@@ -154,7 +186,7 @@ func (idx *Index) nextPhrase(tokens []string, position *Position) *PhrasePositio
 }
 
 func (idx *Index) next(token string, position *Position) *Position {
-	pi, ok := idx.tokenPostingInfoMap[token]
+	pi, ok := idx.invertedIndex[token]
 	if !ok {
 		return InfPosition
 	}
@@ -189,7 +221,7 @@ func (idx *Index) next(token string, position *Position) *Position {
 
 // idf calculates IDF value
 func (idx *Index) idf(token string) float64 {
-	postingInfo, ok := idx.tokenPostingInfoMap[token]
+	postingInfo, ok := idx.invertedIndex[token]
 	df := 1.0
 	if ok {
 		df += float64(len(postingInfo.postings))
