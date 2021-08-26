@@ -2,6 +2,8 @@ package index
 
 import (
 	"github.com/k-yomo/inverted-index/analyzer"
+	"math"
+	"sort"
 )
 
 const (
@@ -17,12 +19,11 @@ type Document struct {
 type Index struct {
 	analyzer            analyzer.Analyzer
 	tokenPostingInfoMap map[string]*postingInfo
-	docNum              int
+	totalDocNum         int
 }
 
 type postingInfo struct {
-	postings     postings
-	docFrequency float64
+	postings postings
 }
 
 func NewIndex(analyzer analyzer.Analyzer, documents ...Document) *Index {
@@ -45,14 +46,10 @@ func NewIndex(analyzer analyzer.Analyzer, documents ...Document) *Index {
 		}
 	}
 
-	for _, postingInfo := range tokenPostingInfoMap {
-		postingInfo.docFrequency = float64(len(postingInfo.postings)) / float64(len(documents))
-	}
-
 	return &Index{
 		analyzer:            analyzer,
 		tokenPostingInfoMap: tokenPostingInfoMap,
-		docNum:              len(documents),
+		totalDocNum:         len(documents),
 	}
 }
 
@@ -77,6 +74,33 @@ type Position struct {
 }
 
 var InfPosition = &Position{docID: Inf, tokenPosition: Inf}
+
+type Hit struct {
+	DocID int
+	Score float64
+}
+
+func (idx *Index) Search(phrase string) []*Hit {
+	tokens := idx.analyzer.Analyze(phrase)
+	docScoreMap := make(map[int]float64)
+	for _, token := range tokens {
+		idf := idx.idf(token)
+		if postingInfo, ok := idx.tokenPostingInfoMap[token]; ok {
+			for _, posting := range postingInfo.postings {
+				docScoreMap[posting.docID] += posting.termFrequency * idf
+			}
+		}
+	}
+
+	hits := make([]*Hit, 0, len(docScoreMap))
+	for docID, score := range docScoreMap {
+		hits = append(hits, &Hit{DocID: docID, Score: score})
+	}
+
+	sort.Slice(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
+
+	return hits
+}
 
 func (idx *Index) PhraseSearch(phrase string) []int {
 	var docIDs []int
@@ -161,4 +185,14 @@ func (idx *Index) next(token string, position *Position) *Position {
 		docID:         Inf,
 		tokenPosition: Inf,
 	}
+}
+
+// idf calculates IDF value
+func (idx *Index) idf(token string) float64 {
+	postingInfo, ok := idx.tokenPostingInfoMap[token]
+	df := 1.0
+	if ok {
+		df += float64(len(postingInfo.postings))
+	}
+	return 1.0 + math.Log2(float64(idx.totalDocNum)/df)
 }
