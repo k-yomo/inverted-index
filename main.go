@@ -11,10 +11,11 @@ func main()  {
 		{ ID: 1, Text: "there is a white cat"},
 		{ ID: 2, Text: "black hair cat"},
 		{ ID: 3, Text: "black cat"},
-		{ ID: 3, Text: "white dog"},
+		{ ID: 4, Text: "white dog"},
 	}
 
 	idx := index.NewIndex(&analyzer.EnglishAnalyzer{}, docs...)
+	idx.DeleteDoc(3)
 	hits := idx.Search("black cat")
 
 	pp.Println(hits)
