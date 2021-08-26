@@ -1,5 +1,9 @@
 package index
 
+import (
+	"github.com/k-yomo/inverted-index/analyzer"
+)
+
 const (
 	Inf         = int(^uint(0) >> 1) // use max int as ∞
 	NegativeInf = -Inf - 1           // use min int as -∞
@@ -11,6 +15,7 @@ type Document struct {
 }
 
 type Index struct {
+	analyzer            analyzer.Analyzer
 	tokenPostingInfoMap map[string]*postingInfo
 	docNum              int
 }
@@ -20,12 +25,12 @@ type postingInfo struct {
 	docFrequency float64
 }
 
-func NewIndex(documents ...Document) *Index {
+func NewIndex(analyzer analyzer.Analyzer, documents ...Document) *Index {
 	tokenPostingInfoMap := make(map[string]*postingInfo)
 	for _, doc := range documents {
 		postingMap := make(map[string][]int)
-		terms := tokenize(doc.Text)
-		for i, term := range terms {
+		tokens := analyzer.Analyze(doc.Text)
+		for i, term := range tokens {
 			postingMap[term] = append(postingMap[term], i)
 		}
 		for term, postings := range postingMap {
@@ -34,7 +39,7 @@ func NewIndex(documents ...Document) *Index {
 			}
 			tokenPostingInfoMap[term].postings = append(tokenPostingInfoMap[term].postings, &posting{
 				docID:         doc.ID,
-				termFrequency: float64(len(postings)) / float64(len(terms)),
+				termFrequency: float64(len(postings)) / float64(len(tokens)),
 				postings:      postings,
 			})
 		}
@@ -45,6 +50,7 @@ func NewIndex(documents ...Document) *Index {
 	}
 
 	return &Index{
+		analyzer:            analyzer,
 		tokenPostingInfoMap: tokenPostingInfoMap,
 		docNum:              len(documents),
 	}
@@ -66,21 +72,43 @@ type Range struct {
 }
 
 type Position struct {
-	docID    int
-	position int
+	docID         int
+	tokenPosition int
 }
 
-func (idx *Index) NextPhrase(phrase string, position *Position) *PhrasePosition {
-	terms := tokenize(phrase)
-	termNum := len(terms)
-	if termNum == 0 {
+var InfPosition = &Position{docID: Inf, tokenPosition: Inf}
+
+func (idx *Index) PhraseSearch(phrase string) []int {
+	var docIDs []int
+
+	tokens := idx.analyzer.Analyze(phrase)
+	position := &Position{docID: 0, tokenPosition: 0}
+	for {
+		pos := idx.nextPhrase(tokens, position)
+		if pos.docID == Inf {
+			break
+		}
+		if len(docIDs) == 0 || docIDs[len(docIDs)-1] != pos.docID {
+			docIDs = append(docIDs, pos.docID)
+		}
+		position = &Position{
+			docID:         pos.docID,
+			tokenPosition: pos.positionRange.To,
+		}
+	}
+	return docIDs
+}
+
+func (idx *Index) nextPhrase(tokens []string, position *Position) *PhrasePosition {
+	tokenNum := len(tokens)
+	if tokenNum == 0 {
 		return &PhrasePosition{
 			docID:         Inf,
 			positionRange: &Range{From: Inf, To: Inf},
 		}
 	}
 
-	from := idx.Next(terms[0], position)
+	from := idx.next(tokens[0], position)
 	if from.docID == Inf {
 		return &PhrasePosition{
 			docID:         Inf,
@@ -88,37 +116,49 @@ func (idx *Index) NextPhrase(phrase string, position *Position) *PhrasePosition 
 		}
 	}
 	to := from
-	for i := 1; i < len(terms); i++ {
-		to = idx.Next(terms[i], to)
+	for i := 1; i < len(tokens); i++ {
+		to = idx.next(tokens[i], to)
 	}
-
-	if to.docID == from.docID && to.position-from.position == termNum-1 {
+	if to.docID == from.docID && to.tokenPosition-from.tokenPosition == tokenNum-1 {
 		return &PhrasePosition{
 			docID:         from.docID,
-			positionRange: &Range{From: from.position, To: to.position},
+			positionRange: &Range{From: from.tokenPosition, To: to.tokenPosition},
 		}
 	}
-	return idx.NextPhrase(phrase, from)
+
+	return idx.nextPhrase(tokens, from)
 }
 
-func (idx *Index) Next(term string, position *Position) *Position {
-	if position.docID == Inf {
-		return &Position{docID: Inf, position: Inf}
+func (idx *Index) next(token string, position *Position) *Position {
+	pi, ok := idx.tokenPostingInfoMap[token]
+	if !ok {
+		return InfPosition
+	}
+	if firstDoc := pi.postings[0]; position.docID < pi.postings[0].docID {
+		return &Position{docID: firstDoc.docID, tokenPosition: firstDoc.postings[0]}
 	}
 
-	pi := idx.tokenPostingInfoMap[term]
-	for position.docID != Inf {
-
+	lastDoc := pi.postings[len(pi.postings)-1]
+	if position.docID > lastDoc.docID || position.docID == lastDoc.docID && position.tokenPosition >= lastDoc.Last() {
+		return InfPosition
 	}
-	if position.docID < pi.postings[0].docID {
-		pos := pi.postings[0].Next(position.position)
-		if pos == Inf {
 
+	docPos := pi.postings.DocNextIndex(position.docID - 1)
+	for docPos < len(pi.postings) {
+		tokenPos := pi.postings[docPos].NextIndex(position.tokenPosition)
+		if tokenPos == Inf {
+			docPos += 1
+			position.tokenPosition = NegativeInf
+			continue
+		}
+
+		return &Position{
+			docID:         pi.postings[docPos].docID,
+			tokenPosition: tokenPos,
 		}
 	}
-	postingInfo, ok := idx.tokenPostingInfoMap[term]
-	if !ok {
-		return &Position{docID: Inf, position: Inf}
+	return &Position{
+		docID:         Inf,
+		tokenPosition: Inf,
 	}
-	postingInfo.postings
 }

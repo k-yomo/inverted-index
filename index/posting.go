@@ -9,17 +9,45 @@ type posting struct {
 	postingCache  int
 }
 
-func (ps postings) DocLeft(docID int) int {
+func (ps postings) DocPrevIndex(docID int) int {
 	if len(ps) == 0 || docID == ps[0].docID {
 		return NegativeInf
 	}
+	if docID == Inf {
+		return len(ps) - 1
+	}
+
+	ok, ng := 0, len(ps)-1
+	for ng-ok > 1 {
+		mid := (ok + ng) / 2
+		if ps[mid].docID < docID {
+			ok = mid
+		} else {
+			ng = mid
+		}
+	}
+
+	return ps[ok].docID
 }
 
-func (ps postings) DocRight(docID int) int {
+func (ps postings) DocNextIndex(docID int) int {
 	if len(ps) == 0 || docID == ps[len(ps)-1].docID {
 		return Inf
 	}
+	if docID < ps[0].docID {
+		return 0
+	}
 
+	high, low := len(ps)-1, 0
+	for high-low > 1 {
+		mid := (low + high) / 2
+		if ps[mid].docID > docID {
+			high = mid
+		} else {
+			low = mid
+		}
+	}
+	return high
 }
 
 func (p *posting) First() int {
@@ -36,7 +64,7 @@ func (p *posting) Last() int {
 	return p.postings[len(p.postings)-1]
 }
 
-func (p *posting) Prev(current int) int {
+func (p *posting) PrevIndex(current int) int {
 	postings := p.postings
 	if current <= postings[0] {
 		return NegativeInf
@@ -58,7 +86,7 @@ func (p *posting) Prev(current int) int {
 	return postings[ok]
 }
 
-func (p *posting) Next(current int) int {
+func (p *posting) NextIndex(current int) int {
 	last := p.Last()
 	postings := p.postings
 	if current >= last {
