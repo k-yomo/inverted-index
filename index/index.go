@@ -140,8 +140,6 @@ type Position struct {
 	tokenPosition int
 }
 
-var InfPosition = &Position{docID: Inf, tokenPosition: Inf}
-
 type Hit struct {
 	DocID int
 	Score float64
@@ -205,7 +203,10 @@ func (idx *Index) nextPhrase(tokens []string, position *Position) *PhrasePositio
 			positionRange: &Range{From: Inf, To: Inf},
 		}
 	}
-	to := from
+	to := &Position{
+		docID:         from.docID,
+		tokenPosition: from.tokenPosition,
+	}
 	for i := 1; i < len(tokens); i++ {
 		to = idx.next(tokens[i], to)
 	}
@@ -220,9 +221,11 @@ func (idx *Index) nextPhrase(tokens []string, position *Position) *PhrasePositio
 }
 
 func (idx *Index) next(token string, position *Position) *Position {
+	infPosition := &Position{docID: Inf, tokenPosition: Inf}
+
 	pi, ok := idx.invertedIndex[token]
 	if !ok {
-		return InfPosition
+		return infPosition
 	}
 	postingList := *pi.postings
 	if firstDoc := postingList[0]; position.docID < postingList[0].docID {
@@ -231,7 +234,7 @@ func (idx *Index) next(token string, position *Position) *Position {
 
 	lastDoc := postingList[len(postingList)-1]
 	if position.docID > lastDoc.docID || position.docID == lastDoc.docID && position.tokenPosition >= lastDoc.Last() {
-		return InfPosition
+		return infPosition
 	}
 
 	docPos := pi.postings.NextDocIndex(position.docID - 1)
@@ -248,10 +251,7 @@ func (idx *Index) next(token string, position *Position) *Position {
 			tokenPosition: tokenPos,
 		}
 	}
-	return &Position{
-		docID:         Inf,
-		tokenPosition: Inf,
-	}
+	return infPosition
 }
 
 func (idx *Index) averageDL() float64 {
