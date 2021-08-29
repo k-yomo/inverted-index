@@ -9,8 +9,8 @@ type posting struct {
 	postingCache  int
 }
 
-func (ps postings) DocPrevIndex(docID int) int {
-	if len(ps) == 0 || docID == ps[0].docID {
+func (ps postings) PrevDocIndex(docID int) int {
+	if len(ps) == 0 || docID <= ps[0].docID {
 		return NegativeInf
 	}
 	if docID == Inf {
@@ -27,11 +27,11 @@ func (ps postings) DocPrevIndex(docID int) int {
 		}
 	}
 
-	return ps[ok].docID
+	return ok
 }
 
-func (ps postings) DocNextIndex(docID int) int {
-	if len(ps) == 0 || docID == ps[len(ps)-1].docID {
+func (ps postings) NextDocIndex(docID int) int {
+	if len(ps) == 0 || docID >= ps[len(ps)-1].docID {
 		return Inf
 	}
 	if docID < ps[0].docID {

@@ -21,7 +21,7 @@ type Index struct {
 	forwardIndex  map[int]*docInfo
 	invertedIndex map[string]*postingInfo
 	totalDocNum   int
-	averageDL     float64
+	totalTokenNum int
 }
 
 type docInfo struct {
@@ -33,45 +33,62 @@ type postingInfo struct {
 	postings postings
 }
 
-func NewIndex(analyzer analyzer.Analyzer, documents ...Document) *Index {
-	forwardIndex := make(map[int]*docInfo)
-	invertedIndex := make(map[string]*postingInfo)
-
-	var totalDL int
-	for _, doc := range documents {
-		postingMap := make(map[string][]int)
-		tokens := analyzer.Analyze(doc.Text)
-		totalDL += len(tokens)
-		for i, token := range tokens {
-			postingMap[token] = append(postingMap[token], i)
-		}
-
-		var uniqueTokens []string
-		for token, postings := range postingMap {
-			uniqueTokens = append(uniqueTokens, token)
-			if invertedIndex[token] == nil {
-				invertedIndex[token] = &postingInfo{}
-			}
-			invertedIndex[token].postings = append(invertedIndex[token].postings, &posting{
-				docID:         doc.ID,
-				termFrequency: float64(len(postings)) / float64(len(tokens)),
-				postings:      postings,
-			})
-		}
-
-		forwardIndex[doc.ID] = &docInfo{
-			tokenNum:     len(tokens),
-			uniqueTokens: uniqueTokens,
-		}
-	}
-
+func NewIndex(analyzer analyzer.Analyzer) *Index {
 	return &Index{
 		analyzer:      analyzer,
-		forwardIndex:  forwardIndex,
-		invertedIndex: invertedIndex,
-		totalDocNum:   len(documents),
-		averageDL:     float64(totalDL) / float64(len(documents)),
+		forwardIndex:  make(map[int]*docInfo),
+		invertedIndex: make(map[string]*postingInfo),
+		totalDocNum:   0,
+		totalTokenNum: 0,
 	}
+}
+
+func (idx *Index) AddDocs(documents ...Document) {
+	for _, doc := range documents {
+		idx.AddDoc(doc)
+	}
+}
+
+func (idx *Index) AddDoc(doc Document) {
+	if _, ok := idx.forwardIndex[doc.ID]; ok {
+		idx.DeleteDoc(doc.ID)
+	}
+	postingMap := make(map[string][]int)
+	tokens := idx.analyzer.Analyze(doc.Text)
+	for i, token := range tokens {
+		postingMap[token] = append(postingMap[token], i)
+	}
+
+	var uniqueTokens []string
+	for token, postings := range postingMap {
+		uniqueTokens = append(uniqueTokens, token)
+		if idx.invertedIndex[token] == nil {
+			idx.invertedIndex[token] = &postingInfo{}
+		}
+		pos := &posting{
+			docID:         doc.ID,
+			termFrequency: float64(len(postings)) / float64(len(tokens)),
+			postings:      postings,
+		}
+		curPostings := idx.invertedIndex[token].postings
+		nextIdx := curPostings.NextDocIndex(doc.ID)
+		if nextIdx == Inf {
+			idx.invertedIndex[token].postings = append(curPostings, pos)
+		} else {
+			idx.invertedIndex[token].postings = append(
+				append(curPostings[:nextIdx], pos),
+				curPostings[nextIdx:]...,
+			)
+		}
+	}
+
+	idx.forwardIndex[doc.ID] = &docInfo{
+		tokenNum:     len(tokens),
+		uniqueTokens: uniqueTokens,
+	}
+
+	idx.totalDocNum++
+	idx.totalTokenNum += len(tokens)
 }
 
 func (idx *Index) DeleteDoc(docID int) {
@@ -85,17 +102,16 @@ func (idx *Index) DeleteDoc(docID int) {
 		if !ok {
 			continue
 		}
-		docPos := postingInfo.postings.DocNextIndex(docID - 1)
+		docPos := postingInfo.postings.NextDocIndex(docID - 1)
 		if docPos >= len(postingInfo.postings) || postingInfo.postings[docPos].docID != docID {
 			continue
 		}
 		postingInfo.postings = append(postingInfo.postings[:docPos], postingInfo.postings[docPos+1:]...)
 	}
 
+	idx.totalTokenNum -= docInfo.tokenNum
 	idx.totalDocNum--
 	delete(idx.forwardIndex, docID)
-
-	return
 }
 
 type PhrasePosition struct {
@@ -211,7 +227,7 @@ func (idx *Index) next(token string, position *Position) *Position {
 		return InfPosition
 	}
 
-	docPos := pi.postings.DocNextIndex(position.docID - 1)
+	docPos := pi.postings.NextDocIndex(position.docID - 1)
 	for docPos < len(pi.postings) {
 		tokenPos := pi.postings[docPos].NextIndex(position.tokenPosition)
 		if tokenPos == Inf {
@@ -229,6 +245,10 @@ func (idx *Index) next(token string, position *Position) *Position {
 		docID:         Inf,
 		tokenPosition: Inf,
 	}
+}
+
+func (idx *Index) averageDL() float64 {
+	return float64(idx.totalTokenNum) / float64(idx.totalDocNum)
 }
 
 // idf calculates TF-IDF's IDF value
@@ -256,5 +276,5 @@ func (idx *Index) okapiBM25(token string, docID int, tf float64) float64 {
 	b := 0.75
 	idf := idx.okapiBM25IDF(token)
 	dl := float64(idx.forwardIndex[docID].tokenNum)
-	return idf * ((tf * (k + 1)) / (tf + k*(1-b+b*(dl/idx.averageDL))))
+	return idf * ((tf * (k + 1)) / (tf + k*(1-b+b*(dl/idx.averageDL()))))
 }

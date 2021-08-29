@@ -14,7 +14,8 @@ func main()  {
 		{ ID: 4, Text: "white dog"},
 	}
 
-	idx := index.NewIndex(&analyzer.EnglishAnalyzer{}, docs...)
+	idx := index.NewIndex(&analyzer.EnglishAnalyzer{})
+	idx.AddDocs( docs...)
 	idx.DeleteDoc(3)
 	hits := idx.Search("black cat")
 
