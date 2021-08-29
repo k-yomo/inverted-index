@@ -4,6 +4,7 @@ import (
 	"github.com/k-yomo/inverted-index/analyzer"
 	"math"
 	"sort"
+	"sync"
 )
 
 const (
@@ -22,6 +23,8 @@ type Index struct {
 	invertedIndex map[string]*postingInfo
 	totalDocNum   int
 	totalTokenNum int
+
+	mu *sync.Mutex
 }
 
 type docInfo struct {
@@ -30,7 +33,7 @@ type docInfo struct {
 }
 
 type postingInfo struct {
-	postings postings
+	postings *postings
 }
 
 func NewIndex(analyzer analyzer.Analyzer) *Index {
@@ -40,6 +43,7 @@ func NewIndex(analyzer analyzer.Analyzer) *Index {
 		invertedIndex: make(map[string]*postingInfo),
 		totalDocNum:   0,
 		totalTokenNum: 0,
+		mu:            &sync.Mutex{},
 	}
 }
 
@@ -50,9 +54,13 @@ func (idx *Index) AddDocs(documents ...Document) {
 }
 
 func (idx *Index) AddDoc(doc Document) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
 	if _, ok := idx.forwardIndex[doc.ID]; ok {
-		idx.DeleteDoc(doc.ID)
+		idx.deleteDoc(doc.ID)
 	}
+
 	postingMap := make(map[string][]int)
 	tokens := idx.analyzer.Analyze(doc.Text)
 	for i, token := range tokens {
@@ -60,26 +68,19 @@ func (idx *Index) AddDoc(doc Document) {
 	}
 
 	var uniqueTokens []string
-	for token, postings := range postingMap {
+	for token, postingList := range postingMap {
 		uniqueTokens = append(uniqueTokens, token)
 		if idx.invertedIndex[token] == nil {
-			idx.invertedIndex[token] = &postingInfo{}
+			idx.invertedIndex[token] = &postingInfo{
+				postings: &postings{},
+			}
 		}
 		pos := &posting{
 			docID:         doc.ID,
-			termFrequency: float64(len(postings)) / float64(len(tokens)),
-			postings:      postings,
+			termFrequency: float64(len(postingList)) / float64(len(tokens)),
+			postings:      postingList,
 		}
-		curPostings := idx.invertedIndex[token].postings
-		nextIdx := curPostings.NextDocIndex(doc.ID)
-		if nextIdx == Inf {
-			idx.invertedIndex[token].postings = append(curPostings, pos)
-		} else {
-			idx.invertedIndex[token].postings = append(
-				append(curPostings[:nextIdx], pos),
-				curPostings[nextIdx:]...,
-			)
-		}
+		idx.invertedIndex[token].postings.InsertPosting(pos)
 	}
 
 	idx.forwardIndex[doc.ID] = &docInfo{
@@ -92,24 +93,29 @@ func (idx *Index) AddDoc(doc Document) {
 }
 
 func (idx *Index) DeleteDoc(docID int) {
-	docInfo, ok := idx.forwardIndex[docID]
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
+	idx.deleteDoc(docID)
+}
+
+// deleteDoc deletes doc
+// lock must be taken to use this function since this is not thread-safe
+func (idx *Index) deleteDoc(docID int) {
+	di, ok := idx.forwardIndex[docID]
 	if !ok {
 		return
 	}
 
-	for _, token := range docInfo.uniqueTokens {
-		postingInfo, ok := idx.invertedIndex[token]
+	for _, token := range di.uniqueTokens {
+		pi, ok := idx.invertedIndex[token]
 		if !ok {
 			continue
 		}
-		docPos := postingInfo.postings.NextDocIndex(docID - 1)
-		if docPos >= len(postingInfo.postings) || postingInfo.postings[docPos].docID != docID {
-			continue
-		}
-		postingInfo.postings = append(postingInfo.postings[:docPos], postingInfo.postings[docPos+1:]...)
+		pi.postings.DeletePosting(docID)
 	}
 
-	idx.totalTokenNum -= docInfo.tokenNum
+	idx.totalTokenNum -= di.tokenNum
 	idx.totalDocNum--
 	delete(idx.forwardIndex, docID)
 }
@@ -146,7 +152,7 @@ func (idx *Index) Search(phrase string) []*Hit {
 	docScoreMap := make(map[int]float64)
 	for _, token := range tokens {
 		if postingInfo, ok := idx.invertedIndex[token]; ok {
-			for _, posting := range postingInfo.postings {
+			for _, posting := range *postingInfo.postings {
 				docScoreMap[posting.docID] += idx.okapiBM25(token, posting.docID, posting.termFrequency)
 			}
 		}
@@ -218,18 +224,19 @@ func (idx *Index) next(token string, position *Position) *Position {
 	if !ok {
 		return InfPosition
 	}
-	if firstDoc := pi.postings[0]; position.docID < pi.postings[0].docID {
+	postingList := *pi.postings
+	if firstDoc := postingList[0]; position.docID < postingList[0].docID {
 		return &Position{docID: firstDoc.docID, tokenPosition: firstDoc.postings[0]}
 	}
 
-	lastDoc := pi.postings[len(pi.postings)-1]
+	lastDoc := postingList[len(postingList)-1]
 	if position.docID > lastDoc.docID || position.docID == lastDoc.docID && position.tokenPosition >= lastDoc.Last() {
 		return InfPosition
 	}
 
 	docPos := pi.postings.NextDocIndex(position.docID - 1)
-	for docPos < len(pi.postings) {
-		tokenPos := pi.postings[docPos].NextIndex(position.tokenPosition)
+	for docPos < len(postingList) {
+		tokenPos := postingList[docPos].NextIndex(position.tokenPosition)
 		if tokenPos == Inf {
 			docPos += 1
 			position.tokenPosition = NegativeInf
@@ -237,7 +244,7 @@ func (idx *Index) next(token string, position *Position) *Position {
 		}
 
 		return &Position{
-			docID:         pi.postings[docPos].docID,
+			docID:         postingList[docPos].docID,
 			tokenPosition: tokenPos,
 		}
 	}
@@ -256,7 +263,7 @@ func (idx *Index) idf(token string) float64 {
 	postingInfo, ok := idx.invertedIndex[token]
 	df := 1.0
 	if ok {
-		df += float64(len(postingInfo.postings))
+		df += float64(len(*postingInfo.postings))
 	}
 	return 1.0 + math.Log2(float64(idx.totalDocNum)/df)
 }
@@ -266,7 +273,7 @@ func (idx *Index) okapiBM25IDF(token string) float64 {
 	postingInfo, ok := idx.invertedIndex[token]
 	var df float64
 	if ok {
-		df += float64(len(postingInfo.postings))
+		df += float64(len(*postingInfo.postings))
 	}
 	return 1.0 + math.Log2(1+(float64(idx.totalDocNum)-df+0.5)/(df+0.5))
 }

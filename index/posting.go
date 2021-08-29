@@ -50,6 +50,31 @@ func (ps postings) NextDocIndex(docID int) int {
 	return high
 }
 
+func (ps *postings) InsertPosting(pos *posting) {
+	list := *ps
+	var updated postings
+
+	nextIdx := ps.NextDocIndex(pos.docID)
+	if nextIdx == Inf {
+		updated = append(list, pos)
+	} else {
+		updated = append(
+			list[:nextIdx],
+			append([]*posting{pos}, list[nextIdx:]...)...,
+		)
+	}
+	*ps = updated
+}
+
+func (ps *postings) DeletePosting(docID int) {
+	list := *ps
+	docPos := ps.NextDocIndex(docID - 1)
+	if docPos >= len(list) || list[docPos].docID != docID {
+		return
+	}
+	*ps = append(list[:docPos], list[docPos+1:]...)
+}
+
 func (p *posting) First() int {
 	if len(p.postings) == 0 {
 		return NegativeInf
