@@ -1,12 +1,17 @@
 package index
 
+type postingList struct {
+	docPostings       *docPostings
+	documentFrequency int
+}
+
 type docPostings []*docPosting
 
 type docPosting struct {
 	docID         int
 	termFrequency float64
-	postings      []int
-	postingCache  int
+	positions     []int
+	positionCache int
 }
 
 func (ps docPostings) PrevDocIndex(docID int) int {
@@ -50,11 +55,11 @@ func (ps docPostings) NextDocIndex(docID int) int {
 	return high
 }
 
-func (ps *docPostings) InsertDocPosting(pos *docPosting) {
-	list := *ps
+func (p *postingList) InsertDocPosting(pos *docPosting) {
+	list := *p.docPostings
 	var updated docPostings
 
-	nextIdx := ps.NextDocIndex(pos.docID)
+	nextIdx := list.NextDocIndex(pos.docID)
 	if nextIdx == Inf {
 		updated = append(list, pos)
 	} else {
@@ -63,34 +68,36 @@ func (ps *docPostings) InsertDocPosting(pos *docPosting) {
 			append([]*docPosting{pos}, list[nextIdx:]...)...,
 		)
 	}
-	*ps = updated
+	p.docPostings = &updated
+	p.documentFrequency++
 }
 
-func (ps *docPostings) DeleteDocPosting(docID int) {
-	list := *ps
-	docPos := ps.NextDocIndex(docID - 1)
+func (p *postingList) DeleteDocPosting(docID int) {
+	list := *p.docPostings
+	docPos := list.NextDocIndex(docID - 1)
 	if docPos >= len(list) || list[docPos].docID != docID {
 		return
 	}
-	*ps = append(list[:docPos], list[docPos+1:]...)
+	*p.docPostings = append(list[:docPos], list[docPos+1:]...)
+	p.documentFrequency--
 }
 
 func (p *docPosting) First() int {
-	if len(p.postings) == 0 {
+	if len(p.positions) == 0 {
 		return NegativeInf
 	}
-	return p.postings[0]
+	return p.positions[0]
 }
 
 func (p *docPosting) Last() int {
-	if len(p.postings) == 0 {
+	if len(p.positions) == 0 {
 		return Inf
 	}
-	return p.postings[len(p.postings)-1]
+	return p.positions[len(p.positions)-1]
 }
 
 func (p *docPosting) PrevIndex(current int) int {
-	postings := p.postings
+	postings := p.positions
 	if current <= postings[0] {
 		return NegativeInf
 	}
@@ -113,17 +120,17 @@ func (p *docPosting) PrevIndex(current int) int {
 
 func (p *docPosting) NextIndex(current int) int {
 	last := p.Last()
-	postings := p.postings
+	postings := p.positions
 	if current >= last {
 		return Inf
 	}
 	if current < postings[0] {
-		p.postingCache = 0
+		p.positionCache = 0
 		return postings[0]
 	}
 
 	low := 0
-	if cache := p.postingCache; cache > 0 && postings[cache-1] <= current {
+	if cache := p.positionCache; cache > 0 && postings[cache-1] <= current {
 		low = cache - 1
 	}
 
@@ -139,7 +146,7 @@ func (p *docPosting) NextIndex(current int) int {
 	}
 
 	nextIndex := binarySearch(postings, low, high, current)
-	p.postingCache = nextIndex
+	p.positionCache = nextIndex
 	return postings[nextIndex]
 }
 

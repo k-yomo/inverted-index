@@ -20,7 +20,7 @@ type Document struct {
 type Index struct {
 	analyzer      analyzer.Analyzer
 	forwardIndex  map[int]*docInfo
-	invertedIndex map[string]*docPostings
+	invertedIndex map[string]*postingList
 	totalDocNum   int
 	totalTokenNum int
 
@@ -36,7 +36,7 @@ func NewIndex(analyzer analyzer.Analyzer) *Index {
 	return &Index{
 		analyzer:      analyzer,
 		forwardIndex:  make(map[int]*docInfo),
-		invertedIndex: make(map[string]*docPostings),
+		invertedIndex: make(map[string]*postingList),
 		totalDocNum:   0,
 		totalTokenNum: 0,
 		mu:            &sync.Mutex{},
@@ -64,15 +64,17 @@ func (idx *Index) AddDoc(doc Document) {
 	}
 
 	var uniqueTokens []string
-	for token, postingList := range postingMap {
+	for token, positions := range postingMap {
 		uniqueTokens = append(uniqueTokens, token)
 		if idx.invertedIndex[token] == nil {
-			idx.invertedIndex[token] = &docPostings{}
+			idx.invertedIndex[token] = &postingList{
+				docPostings: &docPostings{},
+			}
 		}
 		docPos := &docPosting{
 			docID:         doc.ID,
-			termFrequency: float64(len(postingList)) / float64(len(tokens)),
-			postings:      postingList,
+			termFrequency: float64(len(positions)) / float64(len(tokens)),
+			positions:     positions,
 		}
 		idx.invertedIndex[token].InsertDocPosting(docPos)
 	}
@@ -102,11 +104,11 @@ func (idx *Index) deleteDoc(docID int) {
 	}
 
 	for _, token := range di.uniqueTokens {
-		dp, ok := idx.invertedIndex[token]
+		pl, ok := idx.invertedIndex[token]
 		if !ok {
 			continue
 		}
-		dp.DeleteDocPosting(docID)
+		pl.DeleteDocPosting(docID)
 	}
 
 	idx.totalTokenNum -= di.tokenNum
@@ -134,9 +136,9 @@ func (idx *Index) Search(phrase string) []*Hit {
 	tokens := idx.analyzer.Analyze(phrase)
 	docScoreMap := make(map[int]float64)
 	for _, token := range tokens {
-		if dps, ok := idx.invertedIndex[token]; ok {
-			s := scorer.NewBM25Scorer(idx.totalDocNum, idx.totalTokenNum, len(*dps))
-			for _, dp := range *dps {
+		if pl, ok := idx.invertedIndex[token]; ok {
+			s := scorer.NewBM25Scorer(idx.totalDocNum, idx.totalTokenNum, pl.documentFrequency)
+			for _, dp := range *pl.docPostings {
 				docScoreMap[dp.docID] += s.Score(idx.documentLength(dp.docID), dp.termFrequency)
 			}
 		}
@@ -212,13 +214,13 @@ func (idx *Index) nextPhrase(tokens []string, pos *tokenPosition) *phrasePositio
 func (idx *Index) next(token string, pos *tokenPosition) *tokenPosition {
 	infPos := &tokenPosition{docID: Inf, position: Inf}
 
-	dps, ok := idx.invertedIndex[token]
+	pl, ok := idx.invertedIndex[token]
 	if !ok {
 		return infPos
 	}
-	docPostingList := *dps
+	docPostingList := *pl.docPostings
 	if firstDoc := docPostingList[0]; pos.docID < docPostingList[0].docID {
-		return &tokenPosition{docID: firstDoc.docID, position: firstDoc.postings[0]}
+		return &tokenPosition{docID: firstDoc.docID, position: firstDoc.positions[0]}
 	}
 
 	last := docPostingList[len(docPostingList)-1]
@@ -226,7 +228,7 @@ func (idx *Index) next(token string, pos *tokenPosition) *tokenPosition {
 		return infPos
 	}
 
-	docPos := dps.NextDocIndex(pos.docID - 1)
+	docPos := docPostingList.NextDocIndex(pos.docID - 1)
 	for docPos < len(docPostingList) {
 		tokenPos := docPostingList[docPos].NextIndex(pos.position)
 		if tokenPos == Inf {
