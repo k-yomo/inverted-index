@@ -9,15 +9,15 @@ import (
 	"time"
 )
 
-func main()  {
+func main() {
 	docs := []index.Document{
-		{ ID: 1, Text: "there is a white cat"},
-		{ ID: 2, Text: "black hair cat"},
-		{ ID: 3, Text: "black cat"},
-		{ ID: 4, Text: "white dog"},
-		{ ID: 5, Text: "blue cat"},
-		{ ID: 6, Text: "black tiger"},
-		{ ID: 7, Text: "white hair dog"},
+		{ID: 1, Text: "there is a white cat"},
+		{ID: 2, Text: "black hair cat"},
+		{ID: 3, Text: "black cat"},
+		{ID: 4, Text: "white dog"},
+		{ID: 5, Text: "blue cat"},
+		{ID: 6, Text: "black tiger"},
+		{ID: 7, Text: "white hair dog"},
 	}
 
 	rand.Seed(time.Now().UnixNano())

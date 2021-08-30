@@ -1,15 +1,15 @@
 package index
 
-type postings []*posting
+type docPostings []*docPosting
 
-type posting struct {
+type docPosting struct {
 	docID         int
 	termFrequency float64
 	postings      []int
 	postingCache  int
 }
 
-func (ps postings) PrevDocIndex(docID int) int {
+func (ps docPostings) PrevDocIndex(docID int) int {
 	if len(ps) == 0 || docID <= ps[0].docID {
 		return NegativeInf
 	}
@@ -30,7 +30,7 @@ func (ps postings) PrevDocIndex(docID int) int {
 	return ok
 }
 
-func (ps postings) NextDocIndex(docID int) int {
+func (ps docPostings) NextDocIndex(docID int) int {
 	if len(ps) == 0 || docID >= ps[len(ps)-1].docID {
 		return Inf
 	}
@@ -50,9 +50,9 @@ func (ps postings) NextDocIndex(docID int) int {
 	return high
 }
 
-func (ps *postings) InsertPosting(pos *posting) {
+func (ps *docPostings) InsertDocPosting(pos *docPosting) {
 	list := *ps
-	var updated postings
+	var updated docPostings
 
 	nextIdx := ps.NextDocIndex(pos.docID)
 	if nextIdx == Inf {
@@ -60,13 +60,13 @@ func (ps *postings) InsertPosting(pos *posting) {
 	} else {
 		updated = append(
 			list[:nextIdx],
-			append([]*posting{pos}, list[nextIdx:]...)...,
+			append([]*docPosting{pos}, list[nextIdx:]...)...,
 		)
 	}
 	*ps = updated
 }
 
-func (ps *postings) DeletePosting(docID int) {
+func (ps *docPostings) DeleteDocPosting(docID int) {
 	list := *ps
 	docPos := ps.NextDocIndex(docID - 1)
 	if docPos >= len(list) || list[docPos].docID != docID {
@@ -75,21 +75,21 @@ func (ps *postings) DeletePosting(docID int) {
 	*ps = append(list[:docPos], list[docPos+1:]...)
 }
 
-func (p *posting) First() int {
+func (p *docPosting) First() int {
 	if len(p.postings) == 0 {
 		return NegativeInf
 	}
 	return p.postings[0]
 }
 
-func (p *posting) Last() int {
+func (p *docPosting) Last() int {
 	if len(p.postings) == 0 {
 		return Inf
 	}
 	return p.postings[len(p.postings)-1]
 }
 
-func (p *posting) PrevIndex(current int) int {
+func (p *docPosting) PrevIndex(current int) int {
 	postings := p.postings
 	if current <= postings[0] {
 		return NegativeInf
@@ -111,7 +111,7 @@ func (p *posting) PrevIndex(current int) int {
 	return postings[ok]
 }
 
-func (p *posting) NextIndex(current int) int {
+func (p *docPosting) NextIndex(current int) int {
 	last := p.Last()
 	postings := p.postings
 	if current >= last {

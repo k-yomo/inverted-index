@@ -5,15 +5,15 @@ import (
 	"strings"
 )
 
-type EnglishAnalyzer struct {}
+type EnglishAnalyzer struct{}
 
 func (a *EnglishAnalyzer) Analyze(text string) []string {
-		tokens := tokenize(text)
-		tokens = lowercaseFilter(tokens)
-		tokens = stopWordFilter(tokens)
-		tokens = stemmerFilter(tokens)
+	tokens := tokenize(text)
+	tokens = lowercaseFilter(tokens)
+	tokens = stopWordFilter(tokens)
+	tokens = stemmerFilter(tokens)
 
-		return tokens
+	return tokens
 }
 
 func tokenize(text string) []string {

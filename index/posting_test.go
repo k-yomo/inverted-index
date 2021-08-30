@@ -8,37 +8,37 @@ func Test_postings_NextDocIndex(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		ps   postings
+		ps   docPostings
 		args args
 		want int
 	}{
 		{
-			ps:   postings{{docID: 1}, { docID: 2}},
+			ps:   docPostings{{docID: 1}, {docID: 2}},
 			args: args{docID: NegativeInf},
 			want: 0,
 		},
 		{
-			ps:   postings{{docID: 1}, { docID: 2}},
+			ps:   docPostings{{docID: 1}, {docID: 2}},
 			args: args{docID: 0},
 			want: 0,
 		},
 		{
-			ps:   postings{{docID: 1}, { docID: 2}},
+			ps:   docPostings{{docID: 1}, {docID: 2}},
 			args: args{docID: 1},
 			want: 1,
 		},
 		{
-			ps:   postings{{docID: 1}, { docID: 3}},
+			ps:   docPostings{{docID: 1}, {docID: 3}},
 			args: args{docID: 2},
 			want: 1,
 		},
 		{
-			ps:   postings{{docID: 1}, { docID: 3}},
+			ps:   docPostings{{docID: 1}, {docID: 3}},
 			args: args{docID: 3},
 			want: Inf,
 		},
 		{
-			ps:   postings{{docID: 1}, { docID: 3}},
+			ps:   docPostings{{docID: 1}, {docID: 3}},
 			args: args{docID: 4},
 			want: Inf,
 		},
