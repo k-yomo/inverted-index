@@ -2,7 +2,7 @@ package index
 
 import (
 	"github.com/k-yomo/inverted-index/analyzer"
-	"math"
+	"github.com/k-yomo/inverted-index/scorer"
 	"sort"
 	"sync"
 )
@@ -135,8 +135,9 @@ func (idx *Index) Search(phrase string) []*Hit {
 	docScoreMap := make(map[int]float64)
 	for _, token := range tokens {
 		if dps, ok := idx.invertedIndex[token]; ok {
+			s := scorer.NewBM25Scorer(idx.totalDocNum, idx.totalTokenNum, len(*dps))
 			for _, dp := range *dps {
-				docScoreMap[dp.docID] += idx.okapiBM25(token, dp.docID, dp.termFrequency)
+				docScoreMap[dp.docID] += s.Score(idx.documentLength(dp.docID), dp.termFrequency)
 			}
 		}
 	}
@@ -246,31 +247,6 @@ func (idx *Index) averageDocumentLength() float64 {
 	return float64(idx.totalTokenNum) / float64(idx.totalDocNum)
 }
 
-// idf calculates TF-IDF's IDF value
-func (idx *Index) idf(token string) float64 {
-	dps, ok := idx.invertedIndex[token]
-	df := 1.0
-	if ok {
-		df += float64(len(*dps))
-	}
-	return 1.0 + math.Log2(float64(idx.totalDocNum)/df)
-}
-
-// okapiBM25IDF calculates Okapi BM25's IDF value
-func (idx *Index) okapiBM25IDF(token string) float64 {
-	dps, ok := idx.invertedIndex[token]
-	var df float64
-	if ok {
-		df += float64(len(*dps))
-	}
-	return 1.0 + math.Log2(1+(float64(idx.totalDocNum)-df+0.5)/(df+0.5))
-}
-
-func (idx *Index) okapiBM25(token string, docID int, tf float64) float64 {
-	k := 2.0
-	b := 0.75
-	idf := idx.okapiBM25IDF(token)
-	dl := float64(idx.forwardIndex[docID].tokenNum)
-	avgDL := idx.averageDocumentLength()
-	return idf * ((tf * (k + 1)) / (tf + k*(1-b+b*(dl/avgDL))))
+func (idx *Index) documentLength(docID int) int {
+	return idx.forwardIndex[docID].tokenNum
 }
