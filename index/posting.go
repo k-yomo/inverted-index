@@ -97,46 +97,46 @@ func (p *docPosting) Last() int {
 }
 
 func (p *docPosting) PrevIndex(current int) int {
-	postings := p.positions
-	if current <= postings[0] {
+	positions := p.positions
+	if current <= positions[0] {
 		return NegativeInf
 	}
-	if current > postings[len(postings)-1] {
-		return postings[len(postings)-1]
+	if current > positions[len(positions)-1] {
+		return positions[len(positions)-1]
 	}
 
-	ok, ng := 0, len(postings)-1
+	ok, ng := 0, len(positions)-1
 	for ng-ok > 1 {
 		mid := (ok + ng) / 2
-		if postings[mid] < current {
+		if positions[mid] < current {
 			ok = mid
 		} else {
 			ng = mid
 		}
 	}
 
-	return postings[ok]
+	return positions[ok]
 }
 
 func (p *docPosting) NextIndex(current int) int {
 	last := p.Last()
-	postings := p.positions
+	positions := p.positions
 	if current >= last {
 		return Inf
 	}
-	if current < postings[0] {
+	if current < positions[0] {
 		p.positionCache = 0
-		return postings[0]
+		return positions[0]
 	}
 
 	low := 0
-	if cache := p.positionCache; cache > 0 && postings[cache-1] <= current {
+	if cache := p.positionCache; cache > 0 && positions[cache-1] <= current {
 		low = cache - 1
 	}
 
 	jump := 1
 	high := low + jump
-	for high < len(postings)-1 && postings[high] <= current {
+	for high < len(positions)-1 && positions[high] <= current {
 		low = high
 		jump = 2 * jump
 		high = low + jump
@@ -145,15 +145,15 @@ func (p *docPosting) NextIndex(current int) int {
 		high = last
 	}
 
-	nextIndex := binarySearch(postings, low, high, current)
+	nextIndex := binarySearch(positions, low, high, current)
 	p.positionCache = nextIndex
-	return postings[nextIndex]
+	return positions[nextIndex]
 }
 
-func binarySearch(postings []int, low, high, current int) int {
+func binarySearch(positions []int, low, high, current int) int {
 	for high-low > 1 {
 		mid := (low + high) / 2
-		if postings[mid] > current {
+		if positions[mid] > current {
 			high = mid
 		} else {
 			low = mid
