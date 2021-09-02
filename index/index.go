@@ -1,7 +1,9 @@
 package index
 
 import (
+	"fmt"
 	"github.com/k-yomo/inverted-index/analyzer"
+	"github.com/k-yomo/inverted-index/directory"
 	"github.com/k-yomo/inverted-index/scorer"
 	"sort"
 	"sync"
@@ -18,6 +20,7 @@ type Document struct {
 }
 
 type Index struct {
+	directory     directory.Directory
 	analyzer      analyzer.Analyzer
 	forwardIndex  map[int]*docInfo
 	invertedIndex map[string]*postingList
@@ -32,15 +35,20 @@ type docInfo struct {
 	uniqueTokens []string
 }
 
-func NewIndex(analyzer analyzer.Analyzer) *Index {
+func NewIndex(directory directory.Directory, analyzer analyzer.Analyzer) (*Index, error) {
+	metaFilePath := fmt.Sprintf( "meta.json")
+	if _, err := directory.Exists(metaFilePath); err != nil {
+		return nil, err
+	}
 	return &Index{
+		directory:     directory,
 		analyzer:      analyzer,
 		forwardIndex:  make(map[int]*docInfo),
 		invertedIndex: make(map[string]*postingList),
 		totalDocNum:   0,
 		totalTokenNum: 0,
 		mu:            &sync.Mutex{},
-	}
+	}, nil
 }
 
 func (idx *Index) AddDocs(documents ...Document) {

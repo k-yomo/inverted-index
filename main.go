@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/k-yomo/inverted-index/analyzer"
+	"github.com/k-yomo/inverted-index/directory"
 	"github.com/k-yomo/inverted-index/index"
 	"github.com/k0kubun/pp/v3"
 	"math/rand"
@@ -23,7 +24,12 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(docs), func(i, j int) { docs[i], docs[j] = docs[j], docs[i] })
 
-	idx := index.NewIndex(&analyzer.EnglishAnalyzer{})
+	dir := directory.NewMMapDirectory("tmp")
+	idx, err := index.NewIndex(dir, &analyzer.EnglishAnalyzer{})
+	if err != nil {
+		panic(err)
+	}
+
 	wg := sync.WaitGroup{}
 	for _, doc := range docs {
 		doc := doc
