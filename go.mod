@@ -8,5 +8,6 @@ require (
 	github.com/kljensen/snowball v0.6.0
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
+	github.com/oklog/ulid/v2 v2.0.2 // indirect
 	golang.org/x/sys v0.0.0-20210831042530-f4d43177bf5e // indirect
 )

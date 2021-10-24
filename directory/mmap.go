@@ -3,19 +3,27 @@ package directory
 import (
 	"bytes"
 	"fmt"
-	"github.com/edsrzf/mmap-go"
 	"io"
 	"os"
+
+	"github.com/edsrzf/mmap-go"
 )
 
 type mmapDirectory struct {
-	rootPath  string
+	rootPath string
 }
 
-func NewMMapDirectory(rootPath string) *mmapDirectory {
+func NewMMapDirectory(rootPath string) (*mmapDirectory, error) {
+	fi, err := os.Stat(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.IsDir() {
+		return nil, fmt.Errorf("'%s' is not directory", rootPath)
+	}
 	return &mmapDirectory{
 		rootPath: rootPath,
-	}
+	}, nil
 }
 
 func (m *mmapDirectory) Read(path string) (io.ReadCloser, error) {
@@ -25,6 +33,19 @@ func (m *mmapDirectory) Read(path string) (io.ReadCloser, error) {
 	}
 	// should we use mmap for read?
 	return f, err
+}
+func (m *mmapDirectory) AtomicRead(path string) ([]byte, error) {
+	f, err := m.Read(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
 }
 
 func (m *mmapDirectory) OpenWrite(path string) (WriteCloseFlasher, error) {
@@ -48,6 +69,15 @@ func (m *mmapDirectory) OpenWrite(path string) (WriteCloseFlasher, error) {
 	}
 
 	return newMmapIO(mem), nil
+}
+
+func (m *mmapDirectory) AtomicWrite(path string, data []byte) error {
+	f, err := os.OpenFile(m.buildPath(path), os.O_RDWR|os.O_CREATE, 0660)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	return err
 }
 
 func (m *mmapDirectory) Exists(path string) (bool, error) {
